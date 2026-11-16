@@ -62,7 +62,7 @@ flowchart LR
 ```
 
 The renderer is plain PyTorch and evaluates every Gaussian at every pixel, so the maths is readable
-in a few lines. That costs memory, which is why the 3D trainer uses gsplat's tiled CUDA rasterizer.
+in a few lines. That costs memory, which is why the 3D trainer will use gsplat's tiled CUDA rasterizer.
 
 ## Key concepts
 
@@ -76,17 +76,17 @@ in a few lines. That costs memory, which is why the 3D trainer uses gsplat's til
   by matching features across overlapping images.
 - **PSNR / SSIM**: standard image-similarity scores, measured on held-out frames.
 - **Alpha compositing / transmittance**: how overlapping blobs combine into one pixel. Each blob adds
-  its colour × its opacity × the light that got through everything in front of it. That leftover light
-  is the *transmittance*, T = Π(1 − α) over the blobs in front. The 2D toy and the 3D trainer use the
-  same formula; in 3D, "in front" means closer to the camera.
+  its color × its opacity × the light that got through everything in front of it. That leftover light
+  is the *transmittance*, T = Π(1 − α) over the blobs in front. The 2D toy uses this formula, and the
+  3D trainer will use the same one; in 3D, "in front" means closer to the camera.
 - **Reparameterization (sigmoid, exp)**: the optimizer works with unconstrained numbers, and we map
-  them into their valid range when rendering. Opacity and colour go through a sigmoid (always 0–1),
+  them into their valid range when rendering. Opacity and color go through a sigmoid (always 0–1),
   and size goes through exp (always positive). Without that, a gradient step could produce a negative
   size or an opacity above 1.
 - **L1 loss**: the average absolute pixel difference between render and target. Gradient descent
   (here the Adam optimizer) nudges every Gaussian to shrink it.
 - **Null-case baseline**: a degenerate "model" a real result must beat. For the 2D toy, that's an
-  image filled with the target's mean colour. If our fit's PSNR isn't clearly above it, the fit has
+  image filled with the target's mean color. If our fit's PSNR isn't clearly above it, the fit has
   learned nothing.
 
 ## Challenges

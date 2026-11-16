@@ -96,5 +96,6 @@ def test_fit_beats_the_mean_colour_image():
     gaussians, losses = fit(target, num_gaussians=100, steps=300, seed=0)
     fitted = render(gaussians, height=32, width=32)
     assert losses[-1] < 0.5 * losses[0]
-    # The mean-colour image scores ~6 dB; a working fit must clear it by a wide margin.
-    assert psnr(fitted, target) > 15.0
+    # Null case: a working fit must clear the mean-colour image by a wide margin, not just tie it.
+    baseline_psnr = psnr(mean_colour_image(target), target)
+    assert psnr(fitted, target) > baseline_psnr + 10.0

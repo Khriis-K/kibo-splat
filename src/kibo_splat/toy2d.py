@@ -2,7 +2,7 @@
 
 This is the core loop of Gaussian splatting with the 3D parts (cameras, projection, depth) removed:
 render the Gaussians into an image, compare it with the target, and let gradient descent nudge every
-Gaussian's position, shape, colour and opacity. The 3D trainer does the same thing after projecting
+Gaussian's position, shape, colour and opacity. The 3D trainer will do the same thing after projecting
 3D Gaussians onto the screen.
 
 Run it with `uv run kibo-splat-toy2d`. Outputs go to outputs/toy2d/ (git-ignored).
@@ -14,10 +14,13 @@ from pathlib import Path
 
 import torch
 
-TARGET_SHEET = Path("docs/data-candidates/kibo-iva_kibo_trans.jpg")
+# Paths are anchored to the repo root (src/kibo_splat/toy2d.py -> up two levels), so the command
+# works from any directory.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+TARGET_SHEET = REPO_ROOT / "docs/data-candidates/kibo-iva_kibo_trans.jpg"
 # The sheet is a 6x2 grid of Astrobee frames with a filename label above each; this box is the first frame.
 FIRST_FRAME_BOX = (0, 14, 320, 234)  # (left, top, right, bottom) in sheet pixels
-OUTPUT_DIR = Path("outputs/toy2d")
+OUTPUT_DIR = REPO_ROOT / "outputs/toy2d"
 
 
 @dataclass
@@ -34,9 +37,6 @@ class Gaussians2D:
     angles: torch.Tensor  # (N,) rotation of the first axis from the image's x-axis, in radians
     colour_logits: torch.Tensor  # (N, 3) RGB before a sigmoid squeezes it into 0-1
     opacity_logits: torch.Tensor  # (N,) opacity before a sigmoid squeezes it into 0-1
-
-    def parameters(self) -> list[torch.Tensor]:
-        return [self.means, self.log_scales, self.angles, self.colour_logits, self.opacity_logits]
 
 
 def render(g: Gaussians2D, height: int, width: int) -> torch.Tensor:
@@ -98,16 +98,18 @@ def init_gaussians(num: int, height: int, width: int, seed: int, device: str | t
     gen = torch.Generator().manual_seed(seed)
     # Pick a size so that num Gaussians would roughly cover the image edge to edge.
     spacing = math.sqrt(height * width / num)
-    tensors = Gaussians2D(
-        means=torch.rand(num, 2, generator=gen) * torch.tensor([width, height]),
-        log_scales=torch.full((num, 2), math.log(spacing / 2)),
-        angles=torch.rand(num, generator=gen) * math.pi,
-        colour_logits=0.1 * torch.randn(num, 3, generator=gen),
-        opacity_logits=torch.zeros(num),
+
+    def learnable(t: torch.Tensor) -> torch.Tensor:
+        # requires_grad tells autograd to track this tensor, so loss.backward() fills in its gradient.
+        return t.to(device).requires_grad_()
+
+    return Gaussians2D(
+        means=learnable(torch.rand(num, 2, generator=gen) * torch.tensor([width, height])),
+        log_scales=learnable(torch.full((num, 2), math.log(spacing / 2))),
+        angles=learnable(torch.rand(num, generator=gen) * math.pi),
+        colour_logits=learnable(0.1 * torch.randn(num, 3, generator=gen)),  # near 0 -> sigmoid near 0.5 (grey)
+        opacity_logits=learnable(torch.zeros(num)),  # 0 -> sigmoid 0.5 (half-transparent)
     )
-    for name, t in vars(tensors).items():
-        setattr(tensors, name, t.to(device).requires_grad_())
-    return tensors
 
 
 def fit(target: torch.Tensor, num_gaussians: int, steps: int, seed: int = 0) -> tuple[Gaussians2D, list[float]]:
@@ -115,7 +117,8 @@ def fit(target: torch.Tensor, num_gaussians: int, steps: int, seed: int = 0) -> 
     height, width, _ = target.shape
     g = init_gaussians(num_gaussians, height, width, seed, target.device)
     # Adam moves each parameter by roughly lr per step, so positions (in pixels) get a pixel-sized
-    # step while the logits and log-scales get a small one.
+    # step while the logits and log-scales get a small one. The exact values (0.5, 0.05) are hand-picked
+    # starting points, not tuned.
     optimizer = torch.optim.Adam(
         [
             {"params": [g.means], "lr": 0.5},
@@ -136,6 +139,7 @@ def fit(target: torch.Tensor, num_gaussians: int, steps: int, seed: int = 0) -> 
 
 def load_target(width: int = 256) -> torch.Tensor:
     """First Astrobee frame from the Kibo contact sheet, resized to `width` px, as (H, W, 3) in 0-1."""
+    # Imported here, not at the top: only the command-line run needs them, so the tests skip loading them.
     import numpy as np
     from PIL import Image
 
@@ -161,7 +165,8 @@ def main() -> None:
     with torch.no_grad():
         fitted = render(g, height, width).clamp(0, 1)
     baseline = mean_colour_image(target)
-    print(f"PSNR fit:         {psnr(fitted, target):.2f} dB")
+    fit_psnr = psnr(fitted, target)
+    print(f"PSNR fit:         {fit_psnr:.2f} dB")
     print(f"PSNR mean colour: {psnr(baseline, target):.2f} dB  (null case)")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -171,9 +176,7 @@ def main() -> None:
     fig.savefig(OUTPUT_DIR / "loss.png", dpi=120, bbox_inches="tight")
 
     fig, axes = plt.subplots(1, 3, figsize=(12, 3))
-    for ax, img, title in zip(
-        axes, [target, fitted, baseline], ["target", f"fit ({psnr(fitted, target):.1f} dB)", "mean colour"]
-    ):
+    for ax, img, title in zip(axes, [target, fitted, baseline], ["target", f"fit ({fit_psnr:.1f} dB)", "mean colour"]):
         ax.imshow(img.cpu().numpy())
         ax.set_title(title)
         ax.axis("off")
