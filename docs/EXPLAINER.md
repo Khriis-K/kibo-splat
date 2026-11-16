@@ -47,6 +47,23 @@ flowchart TD
 5. **Evaluate.** Score renders against frames the model never trained on.
 6. **Compare and ship.** A vs B on quality and pose differences; export the best splat to a web viewer.
 
+### Warm-up: the 2D toy
+
+Before any cameras, `src/kibo_splat/toy2d.py` fits flat 2D Gaussians to a single image. It is the
+training loop with the 3D parts removed, so the core idea can be seen on its own:
+
+```mermaid
+flowchart LR
+    A["init_gaussians<br/>(random blobs)"] --> B["render<br/>(alpha compositing)"]
+    B --> C["L1 loss<br/>vs target image"]
+    C --> D["Adam step<br/>(nudge every Gaussian)"]
+    D --> B
+    B --> E["psnr vs<br/>mean_colour_image"]
+```
+
+The renderer is plain PyTorch and evaluates every Gaussian at every pixel, so the maths is readable
+in a few lines. That costs memory, which is why the 3D trainer uses gsplat's tiled CUDA rasterizer.
+
 ## Key concepts
 
 - **Gaussian splatting**: represent a scene as millions of small, fuzzy, colored 3D blobs. Each has a
@@ -58,6 +75,19 @@ flowchart TD
 - **COLMAP (structure from motion)**: software that recovers camera poses and a sparse 3D point cloud
   by matching features across overlapping images.
 - **PSNR / SSIM**: standard image-similarity scores, measured on held-out frames.
+- **Alpha compositing / transmittance**: how overlapping blobs combine into one pixel. Each blob adds
+  its colour × its opacity × the light that got through everything in front of it. That leftover light
+  is the *transmittance*, T = Π(1 − α) over the blobs in front. The 2D toy and the 3D trainer use the
+  same formula; in 3D, "in front" means closer to the camera.
+- **Reparameterization (sigmoid, exp)**: the optimizer works with unconstrained numbers, and we map
+  them into their valid range when rendering. Opacity and colour go through a sigmoid (always 0–1),
+  and size goes through exp (always positive). Without that, a gradient step could produce a negative
+  size or an opacity above 1.
+- **L1 loss**: the average absolute pixel difference between render and target. Gradient descent
+  (here the Adam optimizer) nudges every Gaussian to shrink it.
+- **Null-case baseline**: a degenerate "model" a real result must beat. For the 2D toy, that's an
+  image filled with the target's mean colour. If our fit's PSNR isn't clearly above it, the fit has
+  learned nothing.
 
 ## Challenges
 
