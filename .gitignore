@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+logs/*
+!logs/.gitkeep
+data/
+*.zip
+*.bag
+results/
+*.ply
+*.pt

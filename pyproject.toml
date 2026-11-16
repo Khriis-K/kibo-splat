@@ -1,0 +1,58 @@
+[project]
+name = "kibo-splat"
+version = "0.1.0"
+description = "A 3-day Gaussian splatting build: 2D fitting, a hand-written 3DGS trainer, ablations"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "gsplat",
+    "imageio[ffmpeg]>=2.34",
+    "matplotlib>=3.9",
+    "numpy>=2",
+    "pillow>=10",
+    "pycolmap>=3.10",
+    "torch>=2.15",
+    "torchmetrics>=1.8",
+    "torchvision>=0.29",
+    "tqdm>=4.66",
+]
+
+[project.scripts]
+kibo-splat-smoke = "kibo_splat.smoke:main"
+kibo-splat-preflight = "kibo_splat.preflight:main"
+
+[build-system]
+requires = ["uv_build>=0.12,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv]
+required-version = ">=0.12.5"
+# uv's own Python, never the system one: it ships Python.h (gsplat's JIT build needs it)
+# and is identical on every CARC node. Fidelis lost a GPU job to this (docs/carc.md).
+python-preference = "only-managed"
+environments = ["sys_platform == 'win32'", "sys_platform == 'linux'"]
+
+# Same stack Fidelis proved on CARC (L40S, A100, A40) and on the RTX 5070 laptop:
+# torch cu134 (has sm_120 for Blackwell) + CARC's cuda/13.0.3 module for nvcc.
+[tool.uv.sources]
+torch = { index = "pytorch-cu134" }
+torchvision = { index = "pytorch-cu134" }
+# PyPI's gsplat 1.5.3 doesn't build with CUDA 13. This fork commit = upstream main @ 512d366
+# + PRs 1085 and 1055 (unmerged) + a <math.h> fix for Linux g++. Builds on CARC and Windows.
+gsplat = { git = "https://github.com/Khriis-K/gsplat", rev = "0270f884c37431fada11e35a0bbd2ba60aa060f4" }
+
+# Install gsplat as Python only; it JIT-compiles its CUDA code on first use.
+[tool.uv.extra-build-variables]
+gsplat = { BUILD_NO_CUDA = "1" }
+
+[[tool.uv.index]]
+name = "pytorch-cu134"
+url = "https://download.pytorch.org/whl/cu134"
+explicit = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"gsplat".msg = "Use kibo_splat.gsplat_loader.import_gsplat(); it pins gsplat's build flags."

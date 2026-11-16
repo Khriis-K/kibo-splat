@@ -1,0 +1,22 @@
+flowchart TD
+    A["Phone video / photos"] --> B["1. Camera recovery (COLMAP)<br/>camera poses + sparse point cloud"]
+    B --> C["2. Initialization<br/>one Gaussian per point"]
+    C --> D
+
+    subgraph T["3. Training loop (~30k steps)"]
+        D["Pick a photo"] --> E["Render Gaussians from that camera<br/>(gsplat)"]
+        E --> F["Loss: render vs photo"]
+        F --> G["Gradients update every Gaussian"]
+        G --> H{"Densify step?"}
+        H -- "yes" --> I["4. Densification<br/>split / clone / prune"]
+        H -- "no" --> D
+        I --> D
+    end
+
+    T --> J["5. Evaluation<br/>held-out photos: PSNR / SSIM"]
+    J --> K["6. Export .ply → web viewer"]
+
+    classDef tool fill:#eef,stroke:#88a
+    classDef ours fill:#efe,stroke:#8a8
+    class B,E,K tool
+    class C,F,G,I,J ours
