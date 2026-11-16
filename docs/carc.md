@@ -31,5 +31,5 @@ Only what kibo-splat needs; no Snakemake.
 
 ## Open
 
-- Which account this project charges (`KIBOSPLAT_ACCOUNT`).
+- ~~Which account this project charges~~ Decided 2026-11-16: the course account `irahbari_1147`, via `KIBOSPLAT_ACCOUNT`. Clone at `/project2/irahbari_1147/ckuizon/kibo-splat` (allocation ends 2027-07-01; copy final results off before then).
 - `gsplat` examples' reference trainer (the Day 2/3 safety net) has heavy extra deps (fused-ssim, pycolmap, nerfview, ...). Not installed yet; add only if Day 2 needs the fallback.

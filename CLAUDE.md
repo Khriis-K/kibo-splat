@@ -33,7 +33,7 @@ Be a sharp critical thinker. Stress-test the user's assumptions, and your own.
 - **Authorship**: every commit is authored solely by the user (`git config user.name`). Never add `Co-Authored-By:` trailers, "Generated with Claude Code" lines, or any AI attribution to commits or PR descriptions.
 - **Commit-msg guard**: `.githooks/commit-msg` rejects such lines. New clones run `git config core.hooksPath .githooks` once.
 - **Pushing**: ask the user before pushing to `main` on GitHub.
-- **Branch**: `main` is the default branch. Repo: `Khriis-K/kibo-splat` (private).
+- **Branch**: `main` is the default branch. Repo: `Khriis-K/kibo-splat` (public).
 
 ## Design principles
 - **KISS**: straightforward code a newcomer can read. No abstractions until the code demands them.
