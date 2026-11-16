@@ -35,7 +35,19 @@ BUILD_FLAGS = {
 }
 
 
+def set_local_build_env() -> None:
+    """On the laptop, do what `carc/env.sh` does on CARC: name the GPU and give kibo-splat its own
+    build cache. Torch's default cache is shared across projects, so Fidelis and kibo-splat would
+    overwrite each other's gsplat build and recompile (~6 min) on every switch.
+    setdefault: anything already set in the shell wins."""
+    if sys.platform != "win32":
+        return  # CARC: carc/env.sh sets these per GPU type
+    os.environ.setdefault("TORCH_CUDA_ARCH_LIST", "12.0")  # RTX 5070 Laptop (Blackwell, sm_120)
+    os.environ.setdefault("TORCH_EXTENSIONS_DIR", str(Path.home() / ".cache" / "torch_extensions_kibo_splat_rtx5070"))
+
+
 def import_gsplat() -> ModuleType:
+    set_local_build_env()
     for name, value in BUILD_FLAGS.items():
         if value is None:
             os.environ.pop(name, None)

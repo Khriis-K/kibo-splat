@@ -18,6 +18,19 @@ Only what kibo-splat needs; no Snakemake.
 | `OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1` on login nodes | 64-process cap; OpenBLAS thread spawn hung imports. |
 | `uv sync` and gsplat build on a debug CPU node | Login nodes: 4 cores / 32 GB cap; exceeding it can lock you out. |
 
+## Verified for kibo-splat
+
+- 2026-11-16, job `14295193` (debug, A40 on `b11-09`, driver 580.159.04): 4/4 preflight + 3/3 smoke PASS,
+  charged to `irahbari_1147` (checked in `sacct`). Elapsed **9 s**: gsplat was prebuilt by `carc/setup.sh`
+  on a CPU node, so the GPU job did no JIT compile. If a smoke job takes minutes, the prebuild was missed
+  (check `GPU_TYPE` / `TORCH_EXTENSIONS_DIR`).
+- CARC's toolchain: nvcc 13.0 (module) with torch built for CUDA 13.4. Only the major version has to match.
+  uv-managed Python 3.12.16. gsplat fork reports version 1.6.0.
+- Laptop (RTX 5070, sm_120, nvcc 13.4), same day: 4/4 preflight + 3/3 smoke PASS, same forward/backward numbers
+  as the A40. No `env.sh` there: `set_local_build_env()` in `gsplat_loader.py` sets `TORCH_CUDA_ARCH_LIST=12.0`
+  and a kibo-splat-only `TORCH_EXTENSIONS_DIR`. Torch's default cache was shared with Fidelis, and each
+  project's build overwrote the other's (~350 s rebuild per switch). Own cache: first build 351 s, later runs 24 s.
+
 ## Facts
 
 - Login `discovery1.usc.edu` (VPN off campus). Data transfers: `hpc-transfer1.usc.edu`, in tmux. Compute nodes have no internet.

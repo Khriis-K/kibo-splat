@@ -67,7 +67,7 @@ def check_arch_list() -> str:
     """TORCH_CUDA_ARCH_LIST is set, so CPU-node builds match the GPU job's flags."""
     arch = os.environ.get("TORCH_CUDA_ARCH_LIST")
     if not arch:
-        raise AssertionError("TORCH_CUDA_ARCH_LIST unset; `source carc/env.sh` first")
+        raise AssertionError("TORCH_CUDA_ARCH_LIST unset; on CARC, `source carc/env.sh` first")
     return f"TORCH_CUDA_ARCH_LIST={arch}, TORCH_EXTENSIONS_DIR={os.environ.get('TORCH_EXTENSIONS_DIR')}"
 
 
@@ -80,4 +80,7 @@ CHECKS: dict[str, Check] = {
 
 
 def main() -> int:
+    from kibo_splat.gsplat_loader import set_local_build_env
+
+    set_local_build_env()  # so "arch list" sees the same settings the gsplat build will use
     return run_and_report(CHECKS)
