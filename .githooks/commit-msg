@@ -1,0 +1,12 @@
+#!/bin/sh
+# Reject commit messages that carry AI attribution or any co-author trailer.
+# See CLAUDE.md "Git rules": every commit is authored solely by the user.
+
+bad=$(grep -inE '^Co-Authored-By:|Generated with \[?Claude|noreply@anthropic\.com' "$1")
+
+if [ -n "$bad" ]; then
+  echo "ERROR: commit rejected: attribution / co-author line(s) found:" >&2
+  echo "$bad" >&2
+  echo "Remove them; commits are authored solely by the user (CLAUDE.md, Git rules)." >&2
+  exit 1
+fi

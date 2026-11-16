@@ -20,11 +20,9 @@ A 3-day, hackathon-style learning project: one goal, understand 3D Gaussian spla
 estimates as too imprecise and recomputed everything with structure-from-motion. The public
 dataset ships separate, refined ground-truth poses. Whether those are good enough for splatting is untested.
 
-## Pipeline
+## How it works
 
-See [docs/pipeline.mmd](docs/pipeline.mmd) (rendered: [docs/pipeline.svg](docs/pipeline.svg)).
-Photos → camera poses (COLMAP *or* NASA ground truth) → initial Gaussians → training loop
-(render with gsplat, loss, gradients, densify) → evaluation on held-out frames → web viewer.
+See [docs/EXPLAINER.md](docs/EXPLAINER.md): the pipeline diagram, key concepts, and the story so far.
 
 ## Data
 
@@ -35,6 +33,12 @@ Photos → camera poses (COLMAP *or* NASA ground truth) → initial Gaussians �
 
 Data is not in the repo; `carc/download_data.sh` fetches both.
 Why this sequence and not others: [docs/data-candidates/](docs/data-candidates/).
+
+## After cloning
+
+```bash
+git config core.hooksPath .githooks   # enables the commit-message guard
+```
 
 ## Setup: CARC (once)
 
