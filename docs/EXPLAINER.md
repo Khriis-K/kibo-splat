@@ -64,6 +64,28 @@ flowchart LR
 The renderer is plain PyTorch and evaluates every Gaussian at every pixel, so the maths is readable
 in a few lines. That costs memory, which is why the 3D trainer will use gsplat's tiled CUDA rasterizer.
 
+### Day 1 gate: can COLMAP place the frames?
+
+Model B only exists if COLMAP can recover poses from the images alone. Before any training,
+`src/kibo_splat/colmap_run.py` runs COLMAP by itself and counts the frames it placed:
+
+```mermaid
+flowchart LR
+    A["gray/<br/>1,068 frames"] --> B["feature_extractor<br/>(SIFT, fixed PINHOLE)"]
+    B --> C["sequential_matcher<br/>(GPU, overlap 10)"]
+    C --> D["mapper<br/>(incremental SfM, CPU)"]
+    D --> E["summarize_placement<br/>(largest model only)"]
+    E --> F{"placed ≥ half?"}
+    F -- "yes" --> G["Model B goes ahead"]
+    F -- "no" --> H["One matching retry,<br/>then model A only"]
+```
+
+Only the largest model counts: if COLMAP loses track it starts a new model with its own scale and
+origin, and frames in separate models can't train one splat together. Result: **540 of 1,068 frames
+(50.6%) in one model when the verdict was called, so model B goes ahead.** Caveat: the mapper was
+still running, so the final rate isn't measured yet. The margin over half was 6 frames. Details:
+`docs/colmap-check.md`.
+
 ## Key concepts
 
 - **Gaussian splatting**: represent a scene as millions of small, fuzzy, colored 3D blobs. Each has a
@@ -74,6 +96,14 @@ in a few lines. That costs memory, which is why the 3D trainer will use gsplat's
   A camera that only turns (a panorama) gives no depth information.
 - **COLMAP (structure from motion)**: software that recovers camera poses and a sparse 3D point cloud
   by matching features across overlapping images.
+- **Sequential matching**: for video, match each frame only with its neighbours in time (plus a few
+  farther jumps), not every possible pair. Neighbouring frames overlap most, so this finds most good
+  matches at a fraction of the cost.
+- **Incremental mapping**: COLMAP's way of building the reconstruction. It starts from one good pair
+  of frames, then adds frames one at a time, solving each new camera and triangulating new points.
+- **Bundle adjustment**: a joint re-fit of every camera pose and 3D point to minimise reprojection
+  error (how far each point lands from where it was seen). It keeps errors from piling up, but a
+  *global* one re-fits everything placed so far, so it gets slower as the model grows.
 - **PSNR / SSIM**: standard image-similarity scores, measured on held-out frames.
 - **Alpha compositing / transmittance**: how overlapping blobs combine into one pixel. Each blob adds
   its color × its opacity × the light that got through everything in front of it. That leftover light
@@ -94,6 +124,15 @@ in a few lines. That costs memory, which is why the 3D trainer will use gsplat's
 - **Finding NASA imagery that splats.** Most NASA camera data turned out to be panoramas: the camera
   turns but barely moves. We measured this from metadata before downloading or training anything
   (e.g. the Node 2 sequence: 3 cm of movement while turning 145°). Full survey: `docs/data-candidates/`.
+- **COLMAP was slow, not stuck.** The worry was that forward motion along the module would defeat
+  COLMAP. It didn't: frames kept being placed into one model. The real problem was time. The pip
+  `pycolmap` has no CUDA, and CPU matching was on course to take hours. We noticed by reading
+  progress straight from COLMAP's database, switched to the official CUDA build, and kept the
+  database, so the remaining matches took 274 s. Mapping stayed CPU-bound (this build's solver has no
+  GPU support): each global bundle adjustment pass mostly took longer than the last, from 12 min at
+  328 frames to 45 min at 495, and getting past half took 3 h 47 min. What it taught us:
+  measure progress early instead of trusting a time estimate, and give long jobs checkpoints. This
+  run kept its model only in memory, so the final placement rate needs a resumable rerun.
 
 ## Headline results
 
